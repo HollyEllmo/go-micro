@@ -1,0 +1,17 @@
+# Database data
+db-data/
+
+# Binaries
+*App
+*.exe
+
+# Go build cache
+.cache/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
