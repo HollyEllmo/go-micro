@@ -8,12 +8,16 @@ This is a Go-based microservices architecture project with the following service
 
 - **broker-service**: API Gateway/Broker service running on port 8080 (external) → 80 (internal)
 - **authentication-service**: User authentication service with PostgreSQL backend on port 8081 (external) → 80 (internal)  
-- **logger-service**: Logging service with MongoDB backend on port 8082 (external) → 80 (internal)
+- **logger-service**: Logging service with MongoDB backend (no external port exposed)
+- **listener-service**: RabbitMQ event consumer service (no external port exposed)
+- **mail-service**: Email service with SMTP/MailHog integration on port 8083 (external) → 80 (internal)
 - **front-end**: Web interface for testing microservices interactions on port 80
 
-**Databases:**
+**Databases & Messaging:**
 - **PostgreSQL**: User data storage on port 5433 (external) → 5432 (internal)
 - **MongoDB**: Log data storage on port 27017
+- **RabbitMQ**: Message broker on port 5672 for event-driven communication
+- **MailHog**: Email testing tool on port 1025 (SMTP) and 8025 (Web UI)
 
 The project uses Docker Compose for orchestration and follows standard Go project layout with `cmd/` directories for main applications.
 
@@ -49,10 +53,12 @@ go run ./cmd/web/
 ```bash
 # Build all services with Makefile
 cd project/
-make build_broker    # Build broker service
-make build_auth      # Build auth service
-make build_logger    # Build logger service  
-make build_front     # Build frontend
+make build_broker     # Build broker service
+make build_auth       # Build auth service
+make build_logger     # Build logger service  
+make build_mail       # Build mail service
+make build_listener   # Build listener service
+make build_front      # Build frontend
 
 # Manual builds
 cd broker-service/
@@ -62,12 +68,20 @@ cd authentication-service/
 CGO_ENABLED=0 go build -o authApp ./cmd/api
 
 cd logger-service/
-CGO_ENABLED=0 go build -o loggerApp ./cmd/api
+CGO_ENABLED=0 go build -o loggerServiceApp ./cmd/api
+
+cd mail-service/
+CGO_ENABLED=0 go build -o mailApp ./cmd/api
+
+cd listener-service/
+CGO_ENABLED=0 go build -o listenerApp .
 
 # Build Docker images
 docker build -f broker-service.dockerfile -t broker-service .
 docker build -f authentication-service.dockerfile -t authentication-service .
 docker build -f logger-service.dockerfile -t logger-service .
+docker build -f mail-service.dockerfile -t mail-service .
+docker build -f listener-service.dockerfile -t listener-service .
 ```
 
 ## Code Architecture
@@ -82,7 +96,9 @@ All services follow consistent structure with:
 
 ### Broker Service
 - API Gateway/orchestrator for microservice communication
-- **Dependencies**: Chi router v5.2.2, Chi CORS v1.2.2
+- **Dependencies**: Chi router v5.2.2, Chi CORS v1.2.2, RabbitMQ AMQP client
+- **Actions supported**: auth, log (via RabbitMQ), mail
+- **Event-driven**: Supports RabbitMQ integration for async logging
 
 ### Authentication Service
 - User registration, login, and validation
@@ -94,6 +110,18 @@ All services follow consistent structure with:
 - Centralized logging with MongoDB storage
 - **Database**: MongoDB with official Go driver v1.17.4
 - **Dependencies**: go.mongodb.org/mongo-driver
+
+### Mail Service
+- Email service with SMTP support and MailHog integration
+- **Dependencies**: Standard library net/smtp, HTML/template rendering
+- **Environment**: Configurable SMTP settings, MailHog for testing
+- **Templates**: Supports HTML and plain text email templates
+
+### Listener Service
+- RabbitMQ consumer service for event processing
+- **Dependencies**: RabbitMQ AMQP client (github.com/rabbitmq/amqp091-go)
+- **Event types**: Listens for log.INFO, log.WARNING, log.ERROR
+- **Architecture**: Standalone main.go with event consumer pattern
 
 ### Front-end Service  
 - **main.go**: Web server serving HTML templates
@@ -112,25 +140,30 @@ All services follow consistent structure with:
   }
   ```
 - CORS enabled for all origins with credentials support
-- Single endpoint pattern in broker service: `POST /`
+- Single endpoint pattern in broker service: `POST /` with action-based routing
+- Mail service endpoint: `POST /send` for email delivery
 
 ### Docker Configuration
 - Multi-stage builds using `golang:1.20-alpine` → `alpine:latest`
 - Statically linked binaries with `CGO_ENABLED=0`
 - Port mapping and restart policies defined in docker-compose.yml
-- **Service ports**: broker-service:8080, authentication-service:8081, logger-service:8082
-- **Database ports**: PostgreSQL:5433, MongoDB:27017
+- **Service ports**: broker-service:8080, authentication-service:8081, mail-service:8083
+- **Database ports**: PostgreSQL:5433, MongoDB:27017, RabbitMQ:5672
+- **Development tools**: MailHog UI:8025, MailHog SMTP:1025
 - Persistent volumes for database data in `./db-data/`
 
 ## Project Context
 
 This appears to be an educational/tutorial microservices project demonstrating:
 - Microservices communication patterns via broker service
+- Event-driven architecture with RabbitMQ message broker
 - Docker containerization and multi-service orchestration
 - Database integration (PostgreSQL for users, MongoDB for logs)
 - User authentication with password hashing
-- Centralized logging architecture
+- Centralized logging architecture with async processing
+- Email service integration with SMTP and testing tools
 - Go web service fundamentals with Chi router
 - Template-based frontend for service testing
+- Message queue patterns with producer/consumer model
 
-The architecture supports inter-service communication, persistent data storage, and is expandable for additional microservices and production-ready features.
+The architecture supports inter-service communication, event-driven processing, persistent data storage, and is expandable for additional microservices and production-ready features.
