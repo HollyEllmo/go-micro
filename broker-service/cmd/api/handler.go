@@ -61,41 +61,6 @@ func (app *Config) HandleSubmission(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (app *Config) logItem(w http.ResponseWriter, entry LogPayload) {
-	jsonData, _ := json.MarshalIndent(entry, "", "\t")
-
-	logServiceURL := "http://logger-service/log"
-
-	request, err := http.NewRequest("POST", logServiceURL, bytes.NewBuffer(jsonData))
-	if err != nil {
-		app.errorJSON(w, err)
-		return
-	}
-
-	request.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-
-	response, err := client.Do(request)
-	if err != nil {
-		app.errorJSON(w, err)
-		return
-	}
-
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusAccepted {
-		app.errorJSON(w, err)
-		return
-	}
-
-	var payload jsonResponse
-	payload.Error = false
-	payload.Message = "logged"
-
-	app.writeJSON(w, http.StatusAccepted, payload)
-}
-
 func (app *Config) authenticate(w http.ResponseWriter, a AuthPayload) {
 	// create some json we'll send
 	jsonData, _ := json.MarshalIndent(a, "", "\t")
@@ -185,7 +150,13 @@ func (app *Config) sendMail(w http.ResponseWriter, msg MailPayload) {
 }
 
 func (app *Config) logEventViaRabbit(w http.ResponseWriter, l LogPayload) {
-	err := app.pushToQueue(l.Name, l.Data)
+	// Если name не задан, используем "event" по умолчанию
+	name := l.Name
+	if name == "" {
+		name = "event"
+	}
+
+	err := app.pushToQueue(name, l.Data)
 	if err != nil {
 		app.errorJSON(w, err)
 		return
@@ -215,3 +186,38 @@ func (app *Config) pushToQueue(name, msg string) error {
 	}
 	return nil
 }
+
+// func (app *Config) logItem(w http.ResponseWriter, entry LogPayload) {
+// 	jsonData, _ := json.MarshalIndent(entry, "", "\t")
+
+// 	logServiceURL := "http://logger-service/log"
+
+// 	request, err := http.NewRequest("POST", logServiceURL, bytes.NewBuffer(jsonData))
+// 	if err != nil {
+// 		app.errorJSON(w, err)
+// 		return
+// 	}
+
+// 	request.Header.Set("Content-Type", "application/json")
+
+// 	client := &http.Client{}
+
+// 	response, err := client.Do(request)
+// 	if err != nil {
+// 		app.errorJSON(w, err)
+// 		return
+// 	}
+
+// 	defer response.Body.Close()
+
+// 	if response.StatusCode != http.StatusAccepted {
+// 		app.errorJSON(w, err)
+// 		return
+// 	}
+
+// 	var payload jsonResponse
+// 	payload.Error = false
+// 	payload.Message = "logged"
+
+// 	app.writeJSON(w, http.StatusAccepted, payload)
+// }
