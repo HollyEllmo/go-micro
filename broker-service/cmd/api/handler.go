@@ -229,7 +229,7 @@ type RPCPayload struct {
 }
 
 func (app *Config) logItemViaRPC(w http.ResponseWriter, l LogPayload) {
-	client, err := rpc.Dial("tcp", "logger-service:5001")
+	client, err := rpc.Dial("tcp", "logger-service:50051")
 	if err != nil {
 		app.errorJSON(w, err)
 		return
